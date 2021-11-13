@@ -39,3 +39,22 @@ fi
 
 # Clear existing profiles.
 sudo rm -rf /tmp/profile
+
+# Download credentials, if a release agent.
+if test "${BUILDKITE_AGENT_META_DATA_QUEUE}" = "release"; then
+  # Pull down secrets.
+  gcloud secrets versions access --secret="repo-key" > repo.key
+  git config --global credential.helper "store --file ~/.git-credentials"
+  git credential approve <<EOF
+protocol=https
+host=github.com
+username=$(gcloud secrets versions access --secret="github-key")
+password=x-oauth-basic
+EOF
+
+  # Update gcloud components.
+  gcloud components update -q
+
+  # Configure the Docker credential helper (to push images).
+  gcloud auth configure-docker -q
+fi

@@ -35,6 +35,12 @@ _templates:
         ./pkg/tcpip/transport/tcp
         ./pkg/tcpip/transport/udp
         ./pkg/waiter
+  release: &release
+    # This is enforced by the environment hooks on the release agents
+    # as well, only the master branch may be built there.
+    if: build.branch == "master" || build.tag != null
+    agents:
+      queue: "release"
 
 steps:
   # Run basic smoke tests before preceding to other tests.
@@ -115,7 +121,7 @@ steps:
     label: ":test_tube: Unit tests (cgroupv2)"
     command: make unit-tests
     agents:
-            queue: "cgroupv2"
+      queue: "cgroupv2"
   - <<: *common
     label: ":test_tube: Container tests"
     command: make container-tests
@@ -123,7 +129,7 @@ steps:
     label: ":test_tube: Container tests (cgroupv2)"
     command: make container-tests
     agents:
-            queue: "cgroupv2"
+      queue: "cgroupv2"
 
   # All system call tests.
   - <<: *common
@@ -139,7 +145,7 @@ steps:
     label: ":docker: Docker tests (cgroupv2)"
     command: make docker-tests
     agents:
-            queue: "cgroupv2"
+      queue: "cgroupv2"
   - <<: *common
     label: ":goggles: Overlay tests"
     command: make overlay-tests
@@ -171,7 +177,7 @@ steps:
     label: ":docker: Containerd 1.5.4 tests (cgroupv2)"
     command: make containerd-test-1.5.4
     agents:
-            queue: "cgroupv2"
+      queue: "cgroupv2"
 
   # Check the website builds.
   - <<: *common
@@ -306,3 +312,35 @@ steps:
   - <<: *benchmarks
     label: ":tensorflow: TensorFlow benchmarks"
     command: make -i benchmark-platforms BENCHMARKS_SUITE=tensorflow BENCHMARKS_TARGETS=test/benchmarks/ml:tensorflow_test
+
+  # Execute releases.
+  - wait
+  - <<: *common
+    <<: *release
+    label: ":ship: Go branch"
+    commands:
+      - tools/go_branch.sh
+      - git push origin go:go
+  - <<: *common
+    <<: *release
+    label: ":ship: Push all images (x86_64)"
+    commands:
+      - make push-all-images
+  - <<: *common
+    <<: *release
+    label: "ship: Push all images (aarch64)"
+    commands:
+      - make ARCH=aarch64 push-all-images
+  - <<: *common
+    <<: *release
+    label: ":ship: Release"
+    commands:
+      - make artifacts/x86_64
+      - make BAZEL_OPTIONS=--config=cross-aarch64 artifacts/aarch64
+      - make release RELEASE_NIGHTLY=$$RELEASE_NIGHTLY
+      - cd repo && gsutil cp . gs://gvisor/releases/
+  - <<: *common
+    <<: *release
+    label: ":ship: Website Deploy"
+    commands:
+      - make website-deploy
