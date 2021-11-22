@@ -68,7 +68,12 @@ func (sr *sackRecovery) handleSACKRecovery(limit int, end seqnum.Value) (dataSen
 			}
 			dataSent = true
 			snd.Outstanding++
-			snd.writeNext = nextSeg.Next()
+			next := nextSeg.Next()
+			if snd.writeNext != nil {
+				snd.writeNext.DecRef()
+			}
+			next.IncRef()
+			snd.writeNext = next
 			continue
 		}
 

@@ -1441,7 +1441,7 @@ func (e *endpoint) commitRead(done int) *segment {
 		// Memory is only considered released when the whole segment has been
 		// read.
 		memDelta += s.segMemSize()
-		s.decRef()
+		s.DecRef()
 		s = e.rcvQueueInfo.rcvQueue.Front()
 	}
 	e.rcvQueueInfo.RcvBufUsed -= done
@@ -2431,6 +2431,15 @@ func (e *endpoint) shutdownLocked(flags tcpip.ShutdownFlags) tcpip.Error {
 			e.rcvQueueInfo.rcvQueueMu.Lock()
 			e.rcvQueueInfo.RcvClosed = true
 			rcvBufUsed := e.rcvQueueInfo.RcvBufUsed
+
+			s := e.rcvQueueInfo.rcvQueue.Front()
+			for s != nil {
+				next := s.Next()
+				e.rcvQueueInfo.rcvQueue.Remove(s)
+				s.DecRef()
+				s = next
+			}
+
 			e.rcvQueueInfo.rcvQueueMu.Unlock()
 
 			// If we're fully closed and we have unread data we need to abort
@@ -2855,7 +2864,7 @@ func (e *endpoint) readyToRead(s *segment) {
 	e.rcvQueueInfo.rcvQueueMu.Lock()
 	if s != nil {
 		e.rcvQueueInfo.RcvBufUsed += s.payloadSize()
-		s.incRef()
+		s.IncRef()
 		e.rcvQueueInfo.rcvQueue.PushBack(s)
 	} else {
 		e.rcvQueueInfo.RcvClosed = true

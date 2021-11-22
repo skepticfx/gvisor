@@ -27,7 +27,7 @@ import (
 // stack traces). This is false by default and should only be set to true for
 // debugging purposes, as it can generate an extremely large amount of output
 // and drastically degrade performance.
-const enableLogging = false
+const enableLogging = true
 
 // T is the type of the reference counted object. It is only used to customize
 // debug output when leak checking.
