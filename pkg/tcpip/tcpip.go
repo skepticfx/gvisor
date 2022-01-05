@@ -1224,6 +1224,17 @@ type IPv6PacketInfo struct {
 	NIC  NICID
 }
 
+// Minimum socket send and receive buffer sizes.
+const (
+	// Minimum receive buffer size used for all endpoints in Setsockopt.
+	// This value is calculated as 2048 + sizeof(sk_buff) in linux.
+	SocketMinReceiveBufferSize = 2304
+
+	// Minimum send buffer size used for all endpoints in Setsockopt.
+	// This value is double the minimum receive buffer size.
+	SocketMinSendBufferSize = SocketMinReceiveBufferSize << 1
+)
+
 // SendBufferSizeOption is used by stack.(Stack*).Option/SetOption to
 // get/set the default, min and max send buffer sizes.
 type SendBufferSizeOption struct {

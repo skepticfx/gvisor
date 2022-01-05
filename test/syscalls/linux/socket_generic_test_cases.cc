@@ -23,6 +23,7 @@
 #include <sys/un.h>
 
 #include "gtest/gtest.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "test/syscalls/linux/unix_domain_socket_test_util.h"
@@ -943,5 +944,60 @@ TEST_P(AllSocketPairTest, GetSocketOutOfBandInlineOption) {
   EXPECT_EQ(enable, want);
 }
 
+TEST_P(AllSocketPairTest, GetSocketSndbufOption) {
+  auto sockets = ASSERT_NO_ERRNO_AND_VALUE(NewSocketPair());
+  std::string desc = GetParam().description.c_str();
+
+  // gVisor does not allow setting send buffer size for host backed unix
+  // domain sockets.
+  if ((!absl::StrContains(desc, "file socket")) ||
+      (!absl::StrContains(desc, "Unix domain"))) {
+    return;
+  }
+
+  int kSndBufSz = 0;
+  ASSERT_THAT(setsockopt(sockets->first_fd(), SOL_SOCKET, SO_SNDBUF, &kSndBufSz,
+                         sizeof(kSndBufSz)),
+              SyscallSucceeds());
+
+  int min = 0;
+  socklen_t min_len = sizeof(min);
+  ASSERT_THAT(
+      getsockopt(sockets->first_fd(), SOL_SOCKET, SO_SNDBUF, &min, &min_len),
+      SyscallSucceeds());
+  ASSERT_EQ(min_len, sizeof(min));
+
+  // This value is derived as (2 * (2048 + sizeof(sk_buff))).
+  const int minSndBufSize = 4608;
+  EXPECT_EQ(min, minSndBufSize);
+}
+
+TEST_P(AllSocketPairTest, GetSocketRcvbufOption) {
+  auto sockets = ASSERT_NO_ERRNO_AND_VALUE(NewSocketPair());
+  std::string desc = GetParam().description.c_str();
+
+  // gVisor does not allow setting receive buffer size for host backed unix
+  // domain sockets.
+  if ((!absl::StrContains(desc, "file socket")) ||
+      (!absl::StrContains(desc, "Unix domain"))) {
+    return;
+  }
+
+  int kRcvBufSz = 0;
+  ASSERT_THAT(setsockopt(sockets->first_fd(), SOL_SOCKET, SO_RCVBUF, &kRcvBufSz,
+                         sizeof(kRcvBufSz)),
+              SyscallSucceeds());
+
+  int min = 0;
+  socklen_t min_len = sizeof(min);
+  ASSERT_THAT(
+      getsockopt(sockets->first_fd(), SOL_SOCKET, SO_RCVBUF, &min, &min_len),
+      SyscallSucceeds());
+  ASSERT_EQ(min_len, sizeof(min));
+
+  // This value is derived as (2048 + sizeof(sk_buff)).
+  const int minRcvBufSize = 2304;
+  EXPECT_EQ(min, minRcvBufSize);
+}
 }  // namespace testing
 }  // namespace gvisor

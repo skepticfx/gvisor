@@ -638,7 +638,7 @@ func (so *SocketOptions) GetSendBufferSize() int64 {
 // sizes.
 func (so *SocketOptions) SendBufferLimits() (min, max int64) {
 	limits := so.getSendBufferLimits(so.stackHandler)
-	return int64(limits.Min), int64(limits.Max)
+	return int64(SocketMinSendBufferSize), int64(limits.Max)
 }
 
 // SetSendBufferSize sets value for SO_SNDBUF option. notify indicates if the
@@ -662,7 +662,7 @@ func (so *SocketOptions) GetReceiveBufferSize() int64 {
 // sizes.
 func (so *SocketOptions) ReceiveBufferLimits() (min, max int64) {
 	limits := so.getReceiveBufferLimits(so.stackHandler)
-	return int64(limits.Min), int64(limits.Max)
+	return int64(SocketMinReceiveBufferSize), int64(limits.Max)
 }
 
 // SetReceiveBufferSize sets the value of the SO_RCVBUF option, optionally

@@ -1828,11 +1828,8 @@ func (e *endpoint) SetSockOptInt(opt tcpip.SockOptInt, v int) tcpip.Error {
 				return &tcpip.ErrInvalidOptionValue{}
 			}
 		}
-		var rs tcpip.TCPReceiveBufferSizeRangeOption
-		if err := e.stack.TransportProtocolOption(ProtocolNumber, &rs); err == nil {
-			if v < rs.Min/2 {
-				v = rs.Min / 2
-			}
+		if v < tcpip.SocketMinReceiveBufferSize/2 {
+			v = tcpip.SocketMinReceiveBufferSize / 2
 		}
 		e.LockUser()
 		e.windowClamp = uint32(v)
