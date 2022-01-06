@@ -50,6 +50,9 @@ type rawPacket struct {
 	// senderAddr is the network address of the sender.
 	senderAddr tcpip.FullAddress
 	packetInfo tcpip.IPPacketInfo
+
+	// tos stores either the receiveTOS or receiveTClass value.
+	tos uint8
 }
 
 // endpoint is the raw socket implementation of tcpip.Endpoint. It is legal to
@@ -222,32 +225,47 @@ func (e *endpoint) Read(dst io.Writer, opts tcpip.ReadOptions) (tcpip.ReadResult
 
 	e.rcvMu.Unlock()
 
-	res := tcpip.ReadResult{
-		Total: pkt.data.Size(),
-		ControlMessages: tcpip.ControlMessages{
-			HasTimestamp: true,
-			Timestamp:    pkt.receivedAt,
-		},
+	// Control Messages
+	cm := tcpip.ControlMessages{
+		HasTimestamp: true,
+		Timestamp:    pkt.receivedAt,
 	}
-	if opts.NeedRemoteAddr {
-		res.RemoteAddr = pkt.senderAddr
-	}
+
 	switch netProto := e.net.NetProto(); netProto {
 	case header.IPv4ProtocolNumber:
+		if e.ops.GetReceiveTOS() {
+			cm.HasTOS = true
+			cm.TOS = pkt.tos
+		}
+
 		if e.ops.GetReceivePacketInfo() {
-			res.ControlMessages.HasIPPacketInfo = true
-			res.ControlMessages.PacketInfo = pkt.packetInfo
+			cm.HasIPPacketInfo = true
+			cm.PacketInfo = pkt.packetInfo
 		}
 	case header.IPv6ProtocolNumber:
+		if e.ops.GetReceiveTClass() {
+			cm.HasTClass = true
+			// Although TClass is an 8-bit value it's read in the CMsg as a uint32.
+			cm.TClass = uint32(pkt.tos)
+		}
+
 		if e.ops.GetIPv6ReceivePacketInfo() {
-			res.ControlMessages.HasIPv6PacketInfo = true
-			res.ControlMessages.IPv6PacketInfo = tcpip.IPv6PacketInfo{
+			cm.HasIPv6PacketInfo = true
+			cm.IPv6PacketInfo = tcpip.IPv6PacketInfo{
 				NIC:  pkt.packetInfo.NIC,
 				Addr: pkt.packetInfo.DestinationAddr,
 			}
 		}
 	default:
 		panic(fmt.Sprintf("unrecognized network protocol = %d", netProto))
+	}
+
+	res := tcpip.ReadResult{
+		Total:           pkt.data.Size(),
+		ControlMessages: cm,
+	}
+	if opts.NeedRemoteAddr {
+		res.RemoteAddr = pkt.senderAddr
 	}
 
 	n, err := pkt.data.ReadTo(dst, opts.Peek)
@@ -602,6 +620,14 @@ func (e *endpoint) HandlePacket(pkt *stack.PacketBuffer) {
 				DestinationAddr: dstAddr,
 				NIC:             pkt.NICID,
 			},
+		}
+
+		// Save any useful information from the network header to the packet.
+		switch pkt.NetworkProtocolNumber {
+		case header.IPv4ProtocolNumber:
+			packet.tos, _ = header.IPv4(pkt.NetworkHeader().View()).TOS()
+		case header.IPv6ProtocolNumber:
+			packet.tos, _ = header.IPv6(pkt.NetworkHeader().View()).TOS()
 		}
 
 		// Raw IPv4 endpoints return the IP header, but IPv6 endpoints do not.
