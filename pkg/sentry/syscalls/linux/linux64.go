@@ -52,9 +52,9 @@ var AMD64 = &kernel.SyscallTable{
 	},
 	AuditNumber: linux.AUDIT_ARCH_X86_64,
 	Table: map[uintptr]kernel.Syscall{
-		0:   syscalls.Supported("read", Read),
+		0:   syscalls.SupportedPoint("read", Read, ReadEnter, ReadExit),
 		1:   syscalls.Supported("write", Write),
-		2:   syscalls.PartiallySupported("open", Open, "Options O_DIRECT, O_NOATIME, O_PATH, O_TMPFILE, O_SYNC are not supported.", nil),
+		2:   syscalls.PartiallySupportedPoint("open", Open, OpenEnter, OpenExit, "Options O_DIRECT, O_NOATIME, O_PATH, O_TMPFILE, O_SYNC are not supported.", nil),
 		3:   syscalls.Supported("close", Close),
 		4:   syscalls.Supported("stat", Stat),
 		5:   syscalls.Supported("fstat", Fstat),

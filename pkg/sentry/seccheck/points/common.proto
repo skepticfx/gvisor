@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package gvisor.common;
+
+import "google/protobuf/timestamp.proto";
+
+message TaskInfo {
+  int32 thread_id = 1;
+
+  google.protobuf.Timestamp thread_start_time = 2;
+
+  int32 thread_group_id = 3;
+
+  google.protobuf.Timestamp thread_group_start_time = 4;
+
+  string container_id = 5;
+}
+
+message Credentials {
+  uint32 effective_uid = 1;
+  uint32 effective_gid = 2;
+  // ...
+}
+
+message Common {
+  TaskInfo invoker = 1;
+  Credentials credentials = 2;
+}

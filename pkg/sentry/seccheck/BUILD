@@ -34,6 +34,7 @@ go_library(
         "execve.go",
         "exit.go",
         "seccheck.go",
+        "seccheck_amd64.go",
         "seccheck_fieldenum.go",
         "seqatomic_checkerslice_unsafe.go",
         "task.go",
@@ -43,8 +44,10 @@ go_library(
         "//pkg/abi/linux",
         "//pkg/context",
         "//pkg/gohacks",
+        "//pkg/sentry/arch",
         "//pkg/sentry/kernel/auth",
         "//pkg/sentry/kernel/time",
+        "//pkg/sentry/seccheck/points:points_go_proto",
         "//pkg/sync",
     ],
 )

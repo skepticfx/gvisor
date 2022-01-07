@@ -49,6 +49,8 @@ import (
 	"gvisor.dev/gvisor/pkg/sentry/loader"
 	"gvisor.dev/gvisor/pkg/sentry/pgalloc"
 	"gvisor.dev/gvisor/pkg/sentry/platform"
+	"gvisor.dev/gvisor/pkg/sentry/seccheck"
+	pb "gvisor.dev/gvisor/pkg/sentry/seccheck/points/points_go_proto"
 	"gvisor.dev/gvisor/pkg/sentry/socket/netfilter"
 	"gvisor.dev/gvisor/pkg/sentry/syscalls/linux/vfs2"
 	"gvisor.dev/gvisor/pkg/sentry/time"
@@ -218,6 +220,8 @@ type Args struct {
 	// TraceFD is the file descriptor to write a Go execution trace to.
 	// Valid if >=0.
 	TraceFD int
+
+	CheckerFD int
 }
 
 // make sure stdioFDs are always the same on initial start and on restore
@@ -412,6 +416,10 @@ func New(args Args) (*Loader, error) {
 		}
 		defer hostFilesystem.DecRef(k.SupervisorContext())
 		k.SetHostMount(k.VFS().NewDisconnectedMount(hostFilesystem, nil, &vfs.MountOptions{}))
+	}
+
+	if args.CheckerFD >= 0 {
+		setupSeccheck(args.CheckerFD)
 	}
 
 	eid := execID{cid: args.ID}
@@ -612,6 +620,19 @@ func (l *Loader) run() error {
 			return err
 		}
 
+		if seccheck.Global.Enabled(seccheck.PointContainerStart) {
+			evt := pb.Start{
+				Id:   l.sandboxID,
+				Cmd:  l.root.spec.Process.Cwd,
+				Args: l.root.spec.Process.Args,
+				Env:  l.root.spec.Process.Env,
+			}
+			_ = seccheck.Global.SendToCheckers(func(c seccheck.Checker) error {
+				ctx := l.root.procArgs.NewContext(l.k)
+				return c.ContainerStart(ctx, &evt)
+			})
+		}
+
 		// Create the root container init task. It will begin running
 		// when the kernel is started.
 		var err error
@@ -741,6 +762,19 @@ func (l *Loader) startSubcontainer(spec *specs.Spec, conf *config.Config, cid st
 		ep.hostTTY = nil
 	} else {
 		info.stdioFDs = stdioFDs
+	}
+
+	if seccheck.Global.Enabled(seccheck.PointContainerStart) {
+		evt := pb.Start{
+			Id:   cid,
+			Cmd:  spec.Process.Cwd,
+			Args: spec.Process.Args,
+			Env:  spec.Process.Env,
+		}
+		_ = seccheck.Global.SendToCheckers(func(c seccheck.Checker) error {
+			ctx := info.procArgs.NewContext(l.k)
+			return c.ContainerStart(ctx, &evt)
+		})
 	}
 
 	ep.tg, ep.tty, ep.ttyVFS2, err = l.createContainerProcess(false, cid, info)

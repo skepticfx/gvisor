@@ -77,6 +77,8 @@ type Syscall struct {
 	Note string
 	// URLs is set of URLs to any relevant bugs or issues.
 	URLs []string
+
+	PointCallback SeccheckCallback
 }
 
 // SyscallFn is a syscall implementation.
@@ -265,6 +267,16 @@ type SyscallTable struct {
 
 	// FeatureEnable stores the strace and one-shot enable bits.
 	FeatureEnable SyscallFlagsTable
+
+	SeccheckCallback []SeccheckCallback
+}
+
+type Enter func(t *Task, sysno uintptr, args arch.SyscallArguments) error
+type Exit func(t *Task, sysno uintptr, args arch.SyscallArguments, rval uintptr, errno int) error
+
+type SeccheckCallback struct {
+	EnterFn Enter
+	ExitFn  Exit
 }
 
 // MaxSysno returns the largest system call number.
@@ -323,6 +335,11 @@ func (s *SyscallTable) Init() {
 	// Initialize the fast-lookup table.
 	for num, sc := range s.Table {
 		s.lookup[num] = sc.Fn
+	}
+
+	s.SeccheckCallback = make([]SeccheckCallback, maxSyscallNum+1)
+	for num, sc := range s.Table {
+		s.SeccheckCallback[num] = sc.PointCallback
 	}
 
 	// Initialize all features.

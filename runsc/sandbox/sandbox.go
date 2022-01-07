@@ -41,6 +41,7 @@ import (
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sentry/control"
 	"gvisor.dev/gvisor/pkg/sentry/platform"
+	"gvisor.dev/gvisor/pkg/sentry/seccheck/checkers/remote"
 	"gvisor.dev/gvisor/pkg/sync"
 	"gvisor.dev/gvisor/pkg/unet"
 	"gvisor.dev/gvisor/pkg/urpc"
@@ -161,6 +162,8 @@ type Args struct {
 	// resolved to their final absolute location.
 	MountsFile *os.File
 
+	CheckerFile *os.File
+
 	// Gcgroup is the cgroup that the sandbox is part of.
 	Cgroup cgroup.Cgroup
 
@@ -181,6 +184,16 @@ func New(conf *config.Config, args *Args) (*Sandbox, error) {
 		}
 	})
 	defer c.Clean()
+
+	// TODO(fvoznika): Use conf.EventHook as path to the UDS for now...
+	if len(conf.EventHook) > 0 {
+		var err error
+		args.CheckerFile, err = remote.Setup(conf.EventHook)
+		if err != nil {
+			return nil, err
+		}
+		defer args.CheckerFile.Close()
+	}
 
 	// Create pipe to synchronize when sandbox process has been booted.
 	clientSyncFile, sandboxSyncFile, err := os.Pipe()
@@ -581,6 +594,12 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 		defer traceFile.Close()
 		cmd.ExtraFiles = append(cmd.ExtraFiles, traceFile)
 		cmd.Args = append(cmd.Args, "--trace-fd="+strconv.Itoa(nextFD))
+		nextFD++
+	}
+
+	if args.CheckerFile != nil {
+		cmd.ExtraFiles = append(cmd.ExtraFiles, args.CheckerFile)
+		cmd.Args = append(cmd.Args, "--checker-fd="+strconv.Itoa(nextFD))
 		nextFD++
 	}
 

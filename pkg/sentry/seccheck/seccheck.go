@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 
 	"gvisor.dev/gvisor/pkg/context"
+	pb "gvisor.dev/gvisor/pkg/sentry/seccheck/points/points_go_proto"
 	"gvisor.dev/gvisor/pkg/sync"
 )
 
@@ -31,10 +32,12 @@ const (
 	PointClone Point = iota
 	PointExecve
 	PointExitNotifyParent
-	// Add new Points above this line.
-	pointLength
+	PointContainerStart
 
-	numPointBitmaskUint32s = (int(pointLength)-1)/32 + 1
+	// Add new Points above this line.
+	pointLengthBeforeSyscalls
+
+	numPointBitmaskUint32s = (int(pointLengthBeforeSyscalls+pointLengthSyscalls)-1)/32 + 1
 )
 
 // A Checker performs security checks at checkpoints.
@@ -51,6 +54,13 @@ type Checker interface {
 	Clone(ctx context.Context, mask CloneFieldSet, info CloneInfo) error
 	Execve(ctx context.Context, mask ExecveFieldSet, info ExecveInfo) error
 	ExitNotifyParent(ctx context.Context, mask ExitNotifyParentFieldSet, info ExitNotifyParentInfo) error
+
+	// TODO(fvoznika): Replace with syscall enter/exit and move syscall parsing
+	// here.
+	Open(ctx context.Context, info *pb.Open) error
+	Read(ctx context.Context, info *pb.Read) error
+
+	ContainerStart(ctx context.Context, info *pb.Start) error
 }
 
 // CheckerDefaults may be embedded by implementations of Checker to obtain
@@ -69,6 +79,18 @@ func (CheckerDefaults) Execve(ctx context.Context, mask ExecveFieldSet, info Exe
 
 // ExitNotifyParent implements Checker.ExitNotifyParent.
 func (CheckerDefaults) ExitNotifyParent(ctx context.Context, mask ExitNotifyParentFieldSet, info ExitNotifyParentInfo) error {
+	return nil
+}
+
+func (CheckerDefaults) Open(context.Context, *pb.Open) error {
+	return nil
+}
+
+func (CheckerDefaults) Read(context.Context, *pb.Read) error {
+	return nil
+}
+
+func (CheckerDefaults) ContainerStart(context.Context, *pb.Start) error {
 	return nil
 }
 
@@ -143,7 +165,20 @@ func (s *State) AppendChecker(c Checker, req *CheckerReq) {
 // Enabled returns true if any Checker is registered for the given checkpoint.
 func (s *State) Enabled(p Point) bool {
 	word, bit := p/32, p%32
+	if int(word) >= len(s.enabledPoints) {
+		return false
+	}
 	return atomic.LoadUint32(&s.enabledPoints[word])&(uint32(1)<<bit) != 0
+}
+
+func (s *State) SyscallEnabledEnter(sysno uintptr) bool {
+	pt := Point(sysno)*2 + pointLengthBeforeSyscalls
+	return s.Enabled(pt)
+}
+
+func (s *State) SyscallEnabledExit(sysno uintptr) bool {
+	pt := Point(sysno)*2 + 1 + pointLengthBeforeSyscalls
+	return s.Enabled(pt)
 }
 
 func (s *State) getCheckers() []Checker {
@@ -155,4 +190,13 @@ func (s *State) appendCheckerLocked(c Checker) {
 	s.registrationSeq.BeginWrite()
 	s.checkers = append(s.checkers, c)
 	s.registrationSeq.EndWrite()
+}
+
+func (s *State) SendToCheckers(fn func(c Checker) error) error {
+	for _, c := range s.getCheckers() {
+		if err := fn(c); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -99,6 +99,8 @@ type Boot struct {
 	// Valid if >= 0.
 	traceFD int
 
+	checkerFD int
+
 	// pidns is set if the sandbox is in its own pid namespace.
 	pidns bool
 
@@ -136,6 +138,9 @@ func (b *Boot) SetFlags(f *flag.FlagSet) {
 	f.BoolVar(&b.pidns, "pidns", false, "if true, the sandbox is in its own PID namespace")
 	f.IntVar(&b.cpuNum, "cpu-num", 0, "number of CPUs to create inside the sandbox")
 	f.Uint64Var(&b.totalMem, "total-memory", 0, "sets the initial amount of total memory to report back to the container")
+	f.BoolVar(&b.attached, "attached", false, "if attached is true, kills the sandbox process when the parent process terminates")
+
+	// Open FDs that are donated to the sandbox.
 	f.IntVar(&b.userLogFD, "user-log-fd", 0, "file descriptor to write user logs to. 0 means no logging.")
 	f.IntVar(&b.startSyncFD, "start-sync-fd", -1, "required FD to used to synchronize sandbox startup")
 	f.IntVar(&b.mountsFD, "mounts-fd", -1, "mountsFD is the file descriptor to read list of mounts after they have been resolved (direct paths, no symlinks).")
@@ -144,7 +149,7 @@ func (b *Boot) SetFlags(f *flag.FlagSet) {
 	f.IntVar(&b.profileHeapFD, "profile-heap-fd", -1, "file descriptor to write heap profile to. -1 disables profiling.")
 	f.IntVar(&b.profileMutexFD, "profile-mutex-fd", -1, "file descriptor to write mutex profile to. -1 disables profiling.")
 	f.IntVar(&b.traceFD, "trace-fd", -1, "file descriptor to write Go execution trace to. -1 disables tracing.")
-	f.BoolVar(&b.attached, "attached", false, "if attached is true, kills the sandbox process when the parent process terminates")
+	f.IntVar(&b.checkerFD, "checker-fd", -1, "TODO")
 }
 
 // Execute implements subcommands.Command.Execute.  It starts a sandbox in a
@@ -253,6 +258,7 @@ func (b *Boot) Execute(_ context.Context, f *flag.FlagSet, args ...interface{}) 
 		ProfileHeapFD:  b.profileHeapFD,
 		ProfileMutexFD: b.profileMutexFD,
 		TraceFD:        b.traceFD,
+		CheckerFD:      b.checkerFD,
 	}
 	l, err := boot.New(bootArgs)
 	if err != nil {

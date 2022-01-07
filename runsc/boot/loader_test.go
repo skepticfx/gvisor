@@ -138,6 +138,7 @@ func createLoader(vfsEnabled bool, spec *specs.Spec) (*Loader, func(), error) {
 		ControllerFD: fd,
 		GoferFDs:     []int{sandEnd},
 		StdioFDs:     stdio,
+		CheckerFD:    -1,
 	}
 	l, err := New(args)
 	if err != nil {

@@ -24,9 +24,9 @@ import (
 func Override() {
 	// Override AMD64.
 	s := linux.AMD64
-	s.Table[0] = syscalls.Supported("read", Read)
+	s.Table[0] = syscalls.SupportedPoint("read", Read, linux.ReadEnter, linux.ReadExit)
 	s.Table[1] = syscalls.Supported("write", Write)
-	s.Table[2] = syscalls.Supported("open", Open)
+	s.Table[2] = syscalls.SupportedPoint("open", Open, linux.OpenEnter, linux.OpenExit)
 	s.Table[3] = syscalls.Supported("close", Close)
 	s.Table[4] = syscalls.Supported("stat", Stat)
 	s.Table[5] = syscalls.Supported("fstat", Fstat)

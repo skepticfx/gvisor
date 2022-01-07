@@ -29,6 +29,7 @@ import (
 	"gvisor.dev/gvisor/pkg/metric"
 	"gvisor.dev/gvisor/pkg/sentry/arch"
 	"gvisor.dev/gvisor/pkg/sentry/memmap"
+	"gvisor.dev/gvisor/pkg/sentry/seccheck"
 )
 
 // SyscallRestartBlock represents the restart block for a syscall restartable
@@ -88,6 +89,10 @@ func (t *Task) executeSyscall(sysno uintptr, args arch.SyscallArguments) (rval u
 		straceContext = s.Stracer.SyscallEnter(t, sysno, args, fe)
 	}
 
+	if seccheck.Global.SyscallEnabledEnter(sysno) {
+		s.SeccheckCallback[sysno].EnterFn(t, sysno, args)
+	}
+
 	if bits.IsOn32(fe, ExternalBeforeEnable) && (s.ExternalFilterBefore == nil || s.ExternalFilterBefore(t, sysno, args)) {
 		t.invokeExternal()
 		// Ensure we check for stops, then invoke the syscall again.
@@ -117,6 +122,11 @@ func (t *Task) executeSyscall(sysno uintptr, args arch.SyscallArguments) (rval u
 
 	if bits.IsAnyOn32(fe, StraceEnableBits) {
 		s.Stracer.SyscallExit(straceContext, t, sysno, rval, err)
+	}
+
+	if seccheck.Global.SyscallEnabledExit(sysno) {
+		errno := ExtractErrno(err, int(sysno))
+		s.SeccheckCallback[sysno].ExitFn(t, sysno, args, rval, errno)
 	}
 
 	return

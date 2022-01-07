@@ -898,4 +898,8 @@ func (t *Task) loadSeccheckInfoLocked(req seccheck.TaskFieldSet, mask *seccheck.
 		info.ThreadGroupStartTime = t.tg.leader.startTime
 		mask.Add(seccheck.TaskFieldThreadGroupStartTime)
 	}
+	if req.Contains(seccheck.TaskFieldContainerID) {
+		info.ContainerID = t.tg.leader.ContainerID()
+		mask.Add(seccheck.TaskFieldContainerID)
+	}
 }
