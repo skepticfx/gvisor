@@ -4,9 +4,14 @@ load("//tools:defs.bzl", "go_binary", "pkg_tar")
 package(licenses = ["notice"])
 
 docker_image(
-    name = "webhook_image",
+    name = "webhook",
     data = ":files",
     statements = ['ENTRYPOINT ["/webhook"]'],
+    tags = [
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
 )
 
 # files is the full file system of the webhook container. It is simply:
@@ -14,13 +19,13 @@ docker_image(
 # └─ webhook
 pkg_tar(
     name = "files",
-    srcs = [":webhook"],
+    srcs = [":main"],
     extension = "tgz",
     strip_prefix = "/third_party/gvisor/webhook",
 )
 
 go_binary(
-    name = "webhook",
+    name = "main",
     srcs = ["main.go"],
     pure = "on",
     static = "on",

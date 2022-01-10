@@ -66,9 +66,15 @@ spec:
       labels:
         app: gvisor-injection-admission-webhook
     spec:
+      volumes:
+        - name: certs
+          emptyDir: {}
+      initContainers:
+        - name: generate-certs
+          image: %INIT%
       containers:
       - name: webhook
-        image: gcr.io/gke-gvisor/gvisor-injection-admission-webhook:54ce9bd
+        image: %WEBHOOK%
         args:
         - --log-level=debug
         ports:
